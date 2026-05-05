@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: ragchat-postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME:-ragchat}
+      POSTGRES_USER: ${DB_USERNAME:-raguser}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-ragpass}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ragchat-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-raguser} -d ${DB_NAME:-ragchat}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: ragchat-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@ragchat.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - ragchat-network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ragchat-app
+    env_file:
+      - .env
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-ragchat}
+      DB_USERNAME: ${DB_USERNAME:-raguser}
+      DB_PASSWORD: ${DB_PASSWORD:-ragpass}
+    ports:
+      - "${SERVER_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - ragchat-network
+
+networks:
+  ragchat-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
